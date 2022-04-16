@@ -10,14 +10,16 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "OnlineSubsystem.h"
 #include "OnlineSessionSettings.h"
-#include "Microsoft/AllowMicrosoftPlatformTypes.h"
 
 //////////////////////////////////////////////////////////////////////////
 // AMenuSystemCharacter
 
 AMenuSystemCharacter::AMenuSystemCharacter() :
-	CreateSessionCompleteDelegate( FOnCreateSessionCompleteDelegate::CreateUObject(this, &ThisClass::OnCreateSessionComplete)),
-	FindSessionsCompleteDelegate( FOnFindSessionsCompleteDelegate::CreateUObject(this, &ThisClass::OnFindSessionsComplete))
+	CreateSessionCompleteDelegate(
+		FOnCreateSessionCompleteDelegate::CreateUObject(this, &ThisClass::OnCreateSessionComplete)),
+	FindSessionsCompleteDelegate(
+		FOnFindSessionsCompleteDelegate::CreateUObject(this, &ThisClass::OnFindSessionsComplete)),
+	JoinSessionCompleteDelegate(FOnJoinSessionCompleteDelegate::CreateUObject(this, &ThisClass::OnJoinSessionComplete))
 {
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
@@ -45,41 +47,39 @@ AMenuSystemCharacter::AMenuSystemCharacter() :
 
 	// Create a follow camera
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
+	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
+	// Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)
 
 	IOnlineSubsystem* OnlineSubsystem = IOnlineSubsystem::Get();
-	if(OnlineSubsystem)
+	if (OnlineSubsystem)
 	{
 		OnlineSessionInterface = OnlineSubsystem->GetSessionInterface();
-		if( GEngine)
+		if (GEngine)
 		{
 			GEngine->AddOnScreenDebugMessage(
 				-1,
 				15.f,
 				FColor::Blue,
-				FString::Printf(TEXT("Found subsystem %s"), *OnlineSubsystem->GetSubsystemName().ToString() )
-				);
+				FString::Printf(TEXT("Found subsystem %s"), *OnlineSubsystem->GetSubsystemName().ToString())
+			);
 		}
 	}
-	else 
+	else
 	{
-		if( GEngine)
+		if (GEngine)
 		{
 			GEngine->AddOnScreenDebugMessage(
 				-1,
 				15.f,
 				FColor::Blue,
 				FString(TEXT("OnlineSubsystem is NULL"))
-				);
+			);
 		}
-		
 	}
-
-	
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -114,19 +114,19 @@ void AMenuSystemCharacter::SetupPlayerInputComponent(class UInputComponent* Play
 void AMenuSystemCharacter::CreateGameSession()
 {
 	// Called when pressing the 1 key
-	if( !OnlineSessionInterface.IsValid())
+	if (!OnlineSessionInterface.IsValid())
 	{
 		return;
 	}
 
 	auto ExistingSession = OnlineSessionInterface->GetNamedSession(NAME_GameSession);
-	if( ExistingSession != nullptr)
+	if (ExistingSession != nullptr)
 	{
 		OnlineSessionInterface->DestroySession(NAME_GameSession);
 	}
 
 	OnlineSessionInterface->AddOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegate);
-	
+
 	TSharedPtr<FOnlineSessionSettings> SessionSettings = MakeShareable(new FOnlineSessionSettings);
 
 	SessionSettings->bIsLANMatch = false;
@@ -136,20 +136,21 @@ void AMenuSystemCharacter::CreateGameSession()
 	SessionSettings->bShouldAdvertise = true;
 	SessionSettings->bUsesPresence = true;
 	SessionSettings->bUseLobbiesIfAvailable = true;
-	
+	SessionSettings->Set(FName("MatchType"),FString("FreeForAll"),
+							EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+
+
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
-	OnlineSessionInterface->CreateSession( *LocalPlayer->GetPreferredUniqueNetId(), NAME_GameSession, *SessionSettings);
+	OnlineSessionInterface->CreateSession(*LocalPlayer->GetPreferredUniqueNetId(), NAME_GameSession, *SessionSettings);
 }
 
 void AMenuSystemCharacter::JoinGameSession()
 {
 	//Find game sessions
-	
-	if( OnlineSessionInterface.IsValid() == false)
+
+	if (OnlineSessionInterface.IsValid() == false)
 		return;
 
-	
-	
 
 	OnlineSessionInterface->AddOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegate);
 
@@ -159,43 +160,54 @@ void AMenuSystemCharacter::JoinGameSession()
 	SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
 
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
-	OnlineSessionInterface->FindSessions( *LocalPlayer->GetPreferredUniqueNetId(),
-		SessionSearch.ToSharedRef());
+	OnlineSessionInterface->FindSessions(*LocalPlayer->GetPreferredUniqueNetId(),
+	                                     SessionSearch.ToSharedRef());
+
 }
 
 void AMenuSystemCharacter::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	if(bWasSuccessful)
+	if (bWasSuccessful)
 	{
 		GEngine->AddOnScreenDebugMessage(
-				-1,
-				15.f,
-				FColor::Blue,
-				FString::Printf(TEXT("Created session: %s"), *SessionName.ToString())
-				);
-		
+			-1,
+			15.f,
+			FColor::Blue,
+			FString::Printf(TEXT("Created session: %s"), *SessionName.ToString())
+		);
+
+		UWorld* World = GetWorld();
+		if (World)
+		{
+			World->ServerTravel(FString("/Game/ThirdPersonCPP/Maps/Lobby?Listen"));
+		}
 	}
 	else
 	{
-		if(GEngine)
+		if (GEngine)
 		{
 			GEngine->AddOnScreenDebugMessage(
 				-1,
 				15.f,
 				FColor::Red,
 				FString(TEXT("Failed to create session!"))
-				);
+			);
 		}
 	}
 }
 
 void AMenuSystemCharacter::OnFindSessionsComplete(bool bWasSuceesful)
 {
-	for( auto Result : SessionSearch->SearchResults )
+	if (OnlineSessionInterface.IsValid() == false)
+		return;
+
+	for (auto Result : SessionSearch->SearchResults)
 	{
 		FString Id = Result.GetSessionIdStr();
 		FString User = Result.Session.OwningUserName;
-		if( GEngine)
+		FString MatchType;
+		Result.Session.SessionSettings.Get(FName("MatchType"), MatchType);
+		if (GEngine)
 		{
 			GEngine->AddOnScreenDebugMessage(
 				-1,
@@ -203,7 +215,45 @@ void AMenuSystemCharacter::OnFindSessionsComplete(bool bWasSuceesful)
 				FColor::Cyan,
 				FString::Printf(TEXT("Id: %s, User: %s"), *Id, *User)
 			);
-			
+		}
+
+		if (MatchType == FString("FreeForAll"))
+		{
+			GEngine->AddOnScreenDebugMessage(
+				-1,
+				15.f,
+				FColor::Cyan,
+				FString::Printf(TEXT("Joining match type %s"), *MatchType)
+			);
+
+			OnlineSessionInterface->AddOnJoinSessionCompleteDelegate_Handle(JoinSessionCompleteDelegate);
+			const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
+			OnlineSessionInterface->JoinSession( *LocalPlayer->GetPreferredUniqueNetId(), NAME_GameSession,Result);
+		}
+	}
+}
+
+void AMenuSystemCharacter::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
+{
+	if( OnlineSessionInterface.IsValid() == false)
+	{
+		return;
+	}
+	
+	FString Address;
+	if(OnlineSessionInterface->GetResolvedConnectString( NAME_GameSession, Address))
+	{
+		GEngine->AddOnScreenDebugMessage(
+			-1,
+			15.f,
+			FColor::Cyan,
+			FString::Printf(TEXT("Connect string %s"), *Address)
+		);
+	
+		APlayerController* PlayerController = GetGameInstance()->GetFirstLocalPlayerController();
+		if( PlayerController)
+		{
+			PlayerController->ClientTravel(Address, ETravelType::TRAVEL_Absolute);
 		}
 	}
 }
@@ -222,12 +272,12 @@ void AMenuSystemCharacter::OnResetVR()
 
 void AMenuSystemCharacter::TouchStarted(ETouchIndex::Type FingerIndex, FVector Location)
 {
-		Jump();
+	Jump();
 }
 
 void AMenuSystemCharacter::TouchStopped(ETouchIndex::Type FingerIndex, FVector Location)
 {
-		StopJumping();
+	StopJumping();
 }
 
 void AMenuSystemCharacter::TurnAtRate(float Rate)
@@ -258,12 +308,12 @@ void AMenuSystemCharacter::MoveForward(float Value)
 
 void AMenuSystemCharacter::MoveRight(float Value)
 {
-	if ( (Controller != nullptr) && (Value != 0.0f) )
+	if ((Controller != nullptr) && (Value != 0.0f))
 	{
 		// find out which way is right
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
-	
+
 		// get right vector 
 		const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 		// add movement in that direction
