@@ -82,8 +82,8 @@ void UMenu::OnCreateSession(bool bWasSuccessful)
 		if(GEngine)
 		{
 			GEngine->AddOnScreenDebugMessage(
-				-1,
-				15.f,
+				1,
+				3.f,
 				FColor::Yellow,
 				FString(TEXT("Session created successfullly!"))
 				); 
@@ -100,8 +100,8 @@ void UMenu::OnCreateSession(bool bWasSuccessful)
 		if(GEngine)
 		{
 			GEngine->AddOnScreenDebugMessage(
-				-1,
-				15.f,
+				1,
+				3.f,
 				FColor::Yellow,
 				FString(TEXT("Failed to create session!"))
 				); 
@@ -111,45 +111,16 @@ void UMenu::OnCreateSession(bool bWasSuccessful)
 
 void UMenu::OnFindSession(const TArray<FOnlineSessionSearchResult>& SessionSearchResults, bool bWasSuccessful)
 {
-	if(GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(
-			-1,
-			15.f,
-			FColor::Yellow,
-			FString(TEXT("OnFindSesson 1"))
-			); 
-	}
+
 	if(MultiplayerSessionsSubsystem == nullptr)
 	{
 		return;
 	}
 
-	if(GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(
-			-1,
-			15.f,
-			FColor::Yellow,
-			FString::Printf(TEXT("Joining match type num = %d"), SessionSearchResults.Num() )
-			); 
-	}
-
-	
 	for( auto Result: SessionSearchResults)
 	{
 		FString SettingsValue;
 		Result.Session.SessionSettings.Get(FName("MatchType"),SettingsValue);
-
-		if(GEngine)
-		{
-			GEngine->AddOnScreenDebugMessage(
-				-1,
-				15.f,
-				FColor::Yellow,
-				FString::Printf(TEXT("SettingValue = %s"),*SettingsValue )
-				); 
-		}
 		
 		if(SettingsValue == MatchType)
 		{
@@ -197,15 +168,7 @@ void UMenu::HostButtonClicked()
 
 void UMenu::JoinButtonClicked()
 {
-	if(GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(
-			-1,
-			15.f,
-			FColor::Yellow,
-			FString(TEXT("Join btn Clicked!"))
-			); 
-	}
+
 	if(MultiplayerSessionsSubsystem)
 	{
 		MultiplayerSessionsSubsystem->FindSessions( 10000);
