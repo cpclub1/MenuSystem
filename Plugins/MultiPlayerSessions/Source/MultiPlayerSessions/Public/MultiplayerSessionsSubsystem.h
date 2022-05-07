@@ -61,7 +61,7 @@ protected:
 	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
 	void OnFindSessionsComplete(bool bWasSuccessful);
 	void OnJoinSessionComplete(FName SeessionName, EOnJoinSessionCompleteResult::Type Result);
-	void OnDestorySessionComplete(FName SessionName, bool bWasSuccessful);
+	void OnDestroySessionComplete(FName SessionName, bool bWasSuccessful);
 	void OnStartSessionComplete(FName SessionName, bool bWasSuccessful);
 	 
 
@@ -81,8 +81,13 @@ private:
 	FOnJoinSessionCompleteDelegate JoinSessionCompleteDelegate;
 	FDelegateHandle JoinSessionCompleteDelegateHandle;
 	FOnDestroySessionCompleteDelegate DestroySessionCompleteDelegate;
-	FDelegateHandle DestorySessionComplegateDelegateHandle;
+	FDelegateHandle DestroySessionCompleteDelegateHandle;
     FOnStartSessionCompleteDelegate StartSessionCompleteDelegate;
 	FDelegateHandle StartSessionCompleteDelegateHandle;
+
+
+	bool bCreateSessionOnDestroy{ false };
+	int32 LastNumPublicConnections;
+	FString LastMatchType;
 	
 };
